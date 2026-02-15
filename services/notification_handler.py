@@ -1,14 +1,16 @@
 import logging
 from pathlib import Path
-from database.connection import get_user_by_id, get_user_by_email, get_admin_users
+from database import SupabaseDB
 
 logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
+db = SupabaseDB()
+
 
 def load_template(name: str) -> str:
-    """Carrega template de mensagem do diretório templates/."""
+    """Carrega template de mensagem do diretorio templates/."""
     path = TEMPLATES_DIR / f"{name}.txt"
     if path.exists():
         return path.read_text(encoding="utf-8")
@@ -25,12 +27,11 @@ def format_message(event: str, data: dict) -> str:
         except KeyError as e:
             logger.warning(f"Template key missing for {event}: {e}")
 
-    # Fallback: mensagem genérica
     return format_fallback(event, data)
 
 
 def format_fallback(event: str, data: dict) -> str:
-    """Formata mensagem genérica quando template não existe."""
+    """Formata mensagem generica quando template nao existe."""
     event_labels = {
         "lead.new": "Novo Lead",
         "message.new": "Nova Mensagem",
@@ -44,23 +45,23 @@ def format_fallback(event: str, data: dict) -> str:
     label = event_labels.get(event, event)
     details = "\n".join(f"  {k}: {v}" for k, v in data.items() if v)
 
-    return f"SST Finder - {label}\n\n{details}"
+    return f"<b>SST Finder - {label}</b>\n\n{details}"
 
 
 def get_recipients(event: str, data: dict, user_id: str | None) -> list[str]:
-    """Retorna lista de chat_ids que devem receber a notificação."""
+    """Retorna lista de chat_ids que devem receber a notificacao."""
     chat_ids = []
 
-    # Eventos que notificam o usuário alvo
+    # Eventos que notificam o usuario alvo
     if user_id:
-        user = get_user_by_id(user_id)
+        user = db.get_user_by_id(user_id)
         if user and user.get("telegramChatId") and user.get("telegramNotifications"):
             chat_ids.append(user["telegramChatId"])
 
     # Eventos que notificam admins
     admin_events = {"contact.new", "user.registered", "subscription.cancelled"}
     if event in admin_events:
-        admins = get_admin_users()
+        admins = db.get_admin_users()
         for admin in admins:
             if admin["telegramChatId"] and admin["telegramChatId"] not in chat_ids:
                 chat_ids.append(admin["telegramChatId"])
@@ -69,15 +70,15 @@ def get_recipients(event: str, data: dict, user_id: str | None) -> list[str]:
     if event == "lead.new" and not chat_ids:
         prof_email = data.get("professionalEmail")
         if prof_email:
-            user = get_user_by_email(prof_email)
+            user = db.get_user_by_email(prof_email)
             if user and user.get("telegramChatId") and user.get("telegramNotifications"):
                 chat_ids.append(user["telegramChatId"])
 
-    # Mensagem: notificar o destinatário pelo email
+    # Mensagem: notificar o destinatario pelo email
     if event == "message.new" and not chat_ids:
         to_email = data.get("toEmail")
         if to_email:
-            user = get_user_by_email(to_email)
+            user = db.get_user_by_email(to_email)
             if user and user.get("telegramChatId") and user.get("telegramNotifications"):
                 chat_ids.append(user["telegramChatId"])
 

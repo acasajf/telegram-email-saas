@@ -1,59 +1,69 @@
-from fastapi import FastAPI
-from database.connection import get_connection
+from flask import Flask, jsonify
+from flask_cors import CORS
+from config import Config
+from database import SupabaseDB
+import redis
 
-app = FastAPI(title="SST Finder - Telegram Notification Service")
+app = Flask(__name__)
+CORS(app)
+app.config['SECRET_KEY'] = Config.API_SECRET_KEY
+
+db = SupabaseDB()
 
 
-@app.get("/health")
-async def health_check():
-    """Health check do serviço."""
-    checks = {"api": True, "database": False, "redis": False}
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check do servico."""
+    checks = {"api": True, "supabase": False, "redis": False}
 
-    # Check DB
+    # Check Supabase
     try:
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT 1")
-        checks["database"] = True
+        db.client.table('contacts').select('id').limit(1).execute()
+        checks["supabase"] = True
     except Exception:
         pass
 
     # Check Redis
     try:
-        import redis
-        from config.settings import REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
-
-        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD)
+        r = redis.Redis(
+            host=Config.REDIS_HOST,
+            port=Config.REDIS_PORT,
+            password=Config.REDIS_PASSWORD,
+        )
         r.ping()
         checks["redis"] = True
     except Exception:
         pass
 
     healthy = all(checks.values())
-    return {"status": "healthy" if healthy else "degraded", "checks": checks}
+    return jsonify({"status": "healthy" if healthy else "degraded", "checks": checks})
 
 
-@app.get("/stats")
-async def stats():
-    """Estatísticas do serviço de notificações."""
+@app.route('/stats', methods=['GET'])
+def stats():
+    """Estatisticas do servico."""
     try:
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    'SELECT COUNT(*) as total FROM users WHERE "telegramChatId" IS NOT NULL'
-                )
-                result = cur.fetchone()
-                linked_users = result["total"] if result else 0
-
-                cur.execute(
-                    'SELECT COUNT(*) as total FROM users WHERE "telegramNotifications" = true'
-                )
-                result = cur.fetchone()
-                active_notifications = result["total"] if result else 0
-
-        return {
-            "linked_users": linked_users,
-            "active_notifications": active_notifications,
-        }
+        dashboard = db.get_dashboard_stats()
+        return jsonify(dashboard)
     except Exception as e:
-        return {"error": str(e)}
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/emails', methods=['GET'])
+def get_emails():
+    """Lista emails recentes."""
+    try:
+        emails = db.get_emails(limit=20)
+        return jsonify({"emails": emails, "count": len(emails)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/messages', methods=['GET'])
+def get_messages():
+    """Lista mensagens Telegram recentes."""
+    try:
+        messages = db.get_telegram_messages(limit=20)
+        return jsonify({"messages": messages, "count": len(messages)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

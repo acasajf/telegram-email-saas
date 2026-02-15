@@ -2,28 +2,25 @@ import json
 import asyncio
 import logging
 import redis
-from telegram.ext import Application
-from config.settings import REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, NOTIFICATION_CHANNEL
+from config import Config
 from services.notification_handler import format_message, get_recipients
 
 logger = logging.getLogger(__name__)
 
 
-async def start_subscriber(bot_app: Application):
-    """Inicia o subscriber Redis que escuta notificações do sst-finder."""
+async def start_subscriber(bot):
+    """Inicia o subscriber Redis que escuta notificacoes do sst-finder."""
     redis_client = redis.Redis(
-        host=REDIS_HOST,
-        port=REDIS_PORT,
-        password=REDIS_PASSWORD,
+        host=Config.REDIS_HOST,
+        port=Config.REDIS_PORT,
+        password=Config.REDIS_PASSWORD,
         decode_responses=True,
     )
 
     pubsub = redis_client.pubsub()
-    pubsub.subscribe(NOTIFICATION_CHANNEL)
+    pubsub.subscribe(Config.NOTIFICATION_CHANNEL)
 
-    logger.info(f"[SUBSCRIBER] Escutando canal '{NOTIFICATION_CHANNEL}'...")
-
-    bot = bot_app.bot
+    logger.info(f"[SUBSCRIBER] Escutando canal '{Config.NOTIFICATION_CHANNEL}'...")
 
     while True:
         try:
@@ -38,17 +35,17 @@ async def start_subscriber(bot_app: Application):
 
                     logger.info(f"[SUBSCRIBER] Evento recebido: {event}")
 
-                    # Buscar destinatários
+                    # Buscar destinatarios
                     chat_ids = get_recipients(event, data, user_id)
 
                     if not chat_ids:
-                        logger.debug(f"[SUBSCRIBER] Nenhum destinatário para {event}")
+                        logger.debug(f"[SUBSCRIBER] Nenhum destinatario para {event}")
                         continue
 
                     # Formatar mensagem
                     text = format_message(event, data)
 
-                    # Enviar para todos os destinatários
+                    # Enviar para todos os destinatarios
                     for chat_id in chat_ids:
                         try:
                             await bot.send_message(
@@ -56,23 +53,23 @@ async def start_subscriber(bot_app: Application):
                                 text=text,
                                 parse_mode="HTML",
                             )
-                            logger.info(f"[SUBSCRIBER] Notificação enviada para {chat_id}")
+                            logger.info(f"[SUBSCRIBER] Notificacao enviada para {chat_id}")
                         except Exception as e:
                             logger.error(f"[SUBSCRIBER] Erro ao enviar para {chat_id}: {e}")
 
                 except json.JSONDecodeError:
-                    logger.error("[SUBSCRIBER] Payload inválido (não é JSON)")
+                    logger.error("[SUBSCRIBER] Payload invalido (nao e JSON)")
                 except Exception as e:
                     logger.error(f"[SUBSCRIBER] Erro ao processar evento: {e}")
 
             await asyncio.sleep(0.1)
 
         except redis.ConnectionError:
-            logger.error("[SUBSCRIBER] Conexão Redis perdida. Reconectando em 5s...")
+            logger.error("[SUBSCRIBER] Conexao Redis perdida. Reconectando em 5s...")
             await asyncio.sleep(5)
             try:
                 pubsub = redis_client.pubsub()
-                pubsub.subscribe(NOTIFICATION_CHANNEL)
+                pubsub.subscribe(Config.NOTIFICATION_CHANNEL)
                 logger.info("[SUBSCRIBER] Reconectado ao Redis")
             except Exception:
                 pass
