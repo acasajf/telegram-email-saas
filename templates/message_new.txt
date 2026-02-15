@@ -1,0 +1,8 @@
+<b>Nova Mensagem!</b>
+
+Você recebeu uma mensagem no SST Finder.
+
+<b>De:</b> {fromName}
+<b>Assunto:</b> {subject}
+<b>Mensagem:</b>
+{message}

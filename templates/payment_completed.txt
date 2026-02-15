@@ -1,0 +1,8 @@
+<b>Pagamento Confirmado!</b>
+
+Seu pagamento foi processado com sucesso.
+
+<b>Plano:</b> {planId}
+<b>Ciclo:</b> {billingCycle}
+
+Sua conta está ativa. Aproveite todos os recursos do SST Finder!

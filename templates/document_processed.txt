@@ -1,0 +1,7 @@
+<b>Documento Processado!</b>
+
+Seu documento foi processado com sucesso.
+
+<b>Arquivo:</b> {fileName}
+<b>Chunks criados:</b> {chunksCreated}
+<b>Status:</b> {status}

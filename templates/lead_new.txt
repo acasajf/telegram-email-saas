@@ -1,0 +1,10 @@
+<b>Novo Lead Recebido!</b>
+
+Um cliente entrou em contato com você pelo SST Finder.
+
+<b>Cliente:</b> {clientName}
+<b>Email:</b> {clientEmail}
+<b>Telefone:</b> {clientPhone}
+<b>Assunto:</b> {subject}
+
+Acesse o SST Finder para responder.

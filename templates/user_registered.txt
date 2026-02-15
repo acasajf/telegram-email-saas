@@ -1,0 +1,6 @@
+<b>Novo Cadastro no SST Finder!</b>
+
+<b>Nome:</b> {name}
+<b>Email:</b> {email}
+<b>Tipo:</b> {type}
+<b>Role:</b> {role}

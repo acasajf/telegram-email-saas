@@ -1,0 +1,7 @@
+<b>Novo Contato pelo Site</b>
+
+<b>Nome:</b> {name}
+<b>Email:</b> {email}
+<b>Assunto:</b> {subject}
+<b>Mensagem:</b>
+{message}
