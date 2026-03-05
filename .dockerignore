@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Env files (usar docker-compose env)
+.env
+.env.local
+
+# Documentação de desenvolvimento
+*.md
+!README.md
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testes
+test_*.py
+tests/
+pytest_cache/
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
