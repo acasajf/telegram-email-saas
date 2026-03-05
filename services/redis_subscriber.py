@@ -10,17 +10,28 @@ logger = logging.getLogger(__name__)
 
 async def start_subscriber(bot):
     """Inicia o subscriber Redis que escuta notificacoes do sst-finder."""
-    redis_client = redis.Redis(
-        host=Config.REDIS_HOST,
-        port=Config.REDIS_PORT,
-        password=Config.REDIS_PASSWORD,
-        decode_responses=True,
-    )
+    try:
+        redis_client = redis.Redis(
+            host=Config.REDIS_HOST,
+            port=Config.REDIS_PORT,
+            password=Config.REDIS_PASSWORD,
+            decode_responses=True,
+        )
 
-    pubsub = redis_client.pubsub()
-    pubsub.subscribe(Config.NOTIFICATION_CHANNEL)
+        # Testar conexão
+        redis_client.ping()
 
-    logger.info(f"[SUBSCRIBER] Escutando canal '{Config.NOTIFICATION_CHANNEL}'...")
+        pubsub = redis_client.pubsub()
+        pubsub.subscribe(Config.NOTIFICATION_CHANNEL)
+
+        logger.info(f"[SUBSCRIBER] Escutando canal '{Config.NOTIFICATION_CHANNEL}'...")
+    except (redis.ConnectionError, Exception) as e:
+        logger.warning(f"[SUBSCRIBER] Redis nao disponivel: {e}")
+        logger.info("[SUBSCRIBER] Servico continuara sem Redis (sem integracao SST Finder)")
+        # Manter o loop rodando mas sem fazer nada
+        while True:
+            await asyncio.sleep(60)
+        return
 
     while True:
         try:

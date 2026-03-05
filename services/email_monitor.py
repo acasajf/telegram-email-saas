@@ -2,7 +2,6 @@ import imaplib
 import email
 from email.header import decode_header
 from config import Config
-from database import SupabaseDB
 import time
 import asyncio
 import logging
@@ -12,9 +11,22 @@ logger = logging.getLogger(__name__)
 
 class EmailMonitorService:
     def __init__(self, telegram_bot=None):
-        self.db = SupabaseDB()
+        self._db = None
         self.telegram = telegram_bot
         self.imap = None
+
+    @property
+    def db(self):
+        """Lazy-load do database (opcional)."""
+        if self._db is None:
+            try:
+                from database import SupabaseDB
+                self._db = SupabaseDB()
+                logger.info("Supabase conectado no Email Monitor")
+            except Exception as e:
+                logger.warning(f"Supabase nao disponivel no Email Monitor: {e}")
+                self._db = False
+        return self._db if self._db is not False else None
 
     def connect(self):
         """Conecta ao servidor IMAP"""
@@ -102,8 +114,16 @@ class EmailMonitorService:
 
                     logger.info(f"Novo email de: {from_email} | Assunto: {subject}")
 
-                    # Salva no banco
-                    saved_id = self.db.save_email(email_data)
+                    # Salva no banco (se disponível)
+                    saved_id = None
+                    if self.db:
+                        try:
+                            saved_id = self.db.save_email(email_data)
+                            logger.debug(f"Email salvo no DB com ID: {saved_id}")
+                        except Exception as e:
+                            logger.error(f"Erro ao salvar email no DB: {e}")
+                    else:
+                        logger.debug("DB nao disponivel, email nao salvo")
 
                     # Notifica no Telegram
                     if self.telegram and Config.ADMIN_CHAT_ID:
