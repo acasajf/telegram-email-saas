@@ -1,12 +1,26 @@
 import logging
 from pathlib import Path
-from database import SupabaseDB
+from config import Config
 
 logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
-db = SupabaseDB()
+# Lazy-load Supabase (opcional)
+_db = None
+
+def get_db():
+    """Retorna instancia do DB (lazy-loading)."""
+    global _db
+    if _db is None:
+        try:
+            from database import SupabaseDB
+            _db = SupabaseDB()
+            logger.info("Supabase conectado com sucesso")
+        except Exception as e:
+            logger.warning(f"Supabase nao disponivel: {e}")
+            _db = False  # Marca como tentado mas falhou
+    return _db if _db is not False else None
 
 
 def load_template(name: str) -> str:
@@ -51,35 +65,62 @@ def format_fallback(event: str, data: dict) -> str:
 def get_recipients(event: str, data: dict, user_id: str | None) -> list[str]:
     """Retorna lista de chat_ids que devem receber a notificacao."""
     chat_ids = []
+    db = get_db()
+
+    # Se DB nao disponivel, usa fallback para ADMIN_CHAT_ID
+    if not db:
+        logger.debug("DB nao disponivel, usando ADMIN_CHAT_ID como fallback")
+        if Config.ADMIN_CHAT_ID:
+            return [Config.ADMIN_CHAT_ID]
+        return []
 
     # Eventos que notificam o usuario alvo
     if user_id:
-        user = db.get_user_by_id(user_id)
-        if user and user.get("telegramChatId") and user.get("telegramNotifications"):
-            chat_ids.append(user["telegramChatId"])
+        try:
+            user = db.get_user_by_id(user_id)
+            if user and user.get("telegramChatId") and user.get("telegramNotifications"):
+                chat_ids.append(user["telegramChatId"])
+        except Exception as e:
+            logger.error(f"Erro ao buscar usuario {user_id}: {e}")
 
     # Eventos que notificam admins
     admin_events = {"contact.new", "user.registered", "subscription.cancelled"}
     if event in admin_events:
-        admins = db.get_admin_users()
-        for admin in admins:
-            if admin["telegramChatId"] and admin["telegramChatId"] not in chat_ids:
-                chat_ids.append(admin["telegramChatId"])
+        try:
+            admins = db.get_admin_users()
+            for admin in admins:
+                if admin["telegramChatId"] and admin["telegramChatId"] not in chat_ids:
+                    chat_ids.append(admin["telegramChatId"])
+        except Exception as e:
+            logger.error(f"Erro ao buscar admins: {e}")
+            # Fallback para ADMIN_CHAT_ID
+            if Config.ADMIN_CHAT_ID and Config.ADMIN_CHAT_ID not in chat_ids:
+                chat_ids.append(Config.ADMIN_CHAT_ID)
 
     # Lead: notificar o profissional pelo email
     if event == "lead.new" and not chat_ids:
         prof_email = data.get("professionalEmail")
         if prof_email:
-            user = db.get_user_by_email(prof_email)
-            if user and user.get("telegramChatId") and user.get("telegramNotifications"):
-                chat_ids.append(user["telegramChatId"])
+            try:
+                user = db.get_user_by_email(prof_email)
+                if user and user.get("telegramChatId") and user.get("telegramNotifications"):
+                    chat_ids.append(user["telegramChatId"])
+            except Exception as e:
+                logger.error(f"Erro ao buscar usuario por email {prof_email}: {e}")
 
     # Mensagem: notificar o destinatario pelo email
     if event == "message.new" and not chat_ids:
         to_email = data.get("toEmail")
         if to_email:
-            user = db.get_user_by_email(to_email)
-            if user and user.get("telegramChatId") and user.get("telegramNotifications"):
-                chat_ids.append(user["telegramChatId"])
+            try:
+                user = db.get_user_by_email(to_email)
+                if user and user.get("telegramChatId") and user.get("telegramNotifications"):
+                    chat_ids.append(user["telegramChatId"])
+            except Exception as e:
+                logger.error(f"Erro ao buscar usuario por email {to_email}: {e}")
+
+    # Se nao encontrou ninguem, usa ADMIN como fallback
+    if not chat_ids and Config.ADMIN_CHAT_ID:
+        chat_ids.append(Config.ADMIN_CHAT_ID)
 
     return chat_ids

@@ -1,15 +1,30 @@
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from config import Config
-from database import SupabaseDB
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class TelegramBotService:
     def __init__(self):
-        self.db = SupabaseDB()
+        self._db = None
         self.app = Application.builder().token(Config.TELEGRAM_TOKEN).build()
         self._setup_handlers()
+
+    @property
+    def db(self):
+        """Lazy-load do database."""
+        if self._db is None:
+            try:
+                from database import SupabaseDB
+                self._db = SupabaseDB()
+                logger.info("Supabase conectado no Telegram Bot")
+            except Exception as e:
+                logger.warning(f"Supabase nao disponivel no bot: {e}")
+                self._db = False
+        return self._db if self._db is not False else None
 
     def _setup_handlers(self):
         """Configura handlers do bot"""

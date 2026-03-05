@@ -1,14 +1,30 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 from config import Config
-from database import SupabaseDB
 import redis
+import logging
+
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
 app.config['SECRET_KEY'] = Config.API_SECRET_KEY
 
-db = SupabaseDB()
+# Lazy-load Supabase (opcional)
+_db = None
+
+def get_db():
+    """Retorna instancia do DB (lazy-loading)."""
+    global _db
+    if _db is None:
+        try:
+            from database import SupabaseDB
+            _db = SupabaseDB()
+            logger.info("Supabase conectado na API")
+        except Exception as e:
+            logger.warning(f"Supabase nao disponivel na API: {e}")
+            _db = False
+    return _db if _db is not False else None
 
 
 @app.route('/health', methods=['GET'])
@@ -17,11 +33,13 @@ def health_check():
     checks = {"api": True, "supabase": False, "redis": False}
 
     # Check Supabase
-    try:
-        db.client.table('contacts').select('id').limit(1).execute()
-        checks["supabase"] = True
-    except Exception:
-        pass
+    db = get_db()
+    if db:
+        try:
+            db.client.table('contacts').select('id').limit(1).execute()
+            checks["supabase"] = True
+        except Exception:
+            pass
 
     # Check Redis
     try:
